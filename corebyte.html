@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PDF Viewer & Converter – Dreamy UI</title>
+  
+  <!-- ✨ FAVICON FOR TABS – a light, elegant document + sparkle image -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23f0f4ff'/%3E%3Cpath d='M10 8 L18 8 L22 12 L22 22 L10 22 Z' fill='%23ffffff' stroke='%234f46e5' stroke-width='1.2'/%3E%3Cpath d='M18 8 L18 12 L22 12' fill='none' stroke='%234f46e5' stroke-width='1.2'/%3E%3Ctext x='12' y='19' font-size='10' fill='%234f46e5' font-family='Arial'%3E📄%3C/text%3E%3Cpath d='M24 6 L26 8 L24 10' stroke='%23facc15' stroke-width='1' fill='none'/%3E%3C/svg%3E" />
+  
+  <!-- PDF.js and jsPDF from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.141/pdf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #f6f8fb;
+      --card: #fff;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --muted: #6b7280;
+      --gap: 14px;
+      --radius: 10px;
+      --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 8px 20px rgba(0, 0, 0, 0.08);
+      --transition-fast: 0.2s ease;
+      --transition-normal: 0.25s cubic-bezier(0.2, 0.9, 0.4, 1.1);
+    }
+
+    /* Reduced motion support */
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    body {
+      font-family: Inter, system-ui, 'Segoe UI', Roboto, Arial;
+      margin: 0;
+      background: var(--bg);
+      color: #111;
+      animation: fadeIn 0.4s ease;
+      position: relative;
+    }
+
+    /* LIGHT BACKGROUND PATTERN (subtle dots) */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='20' r='1.2' fill='%234f46e5' fill-opacity='0.12'/%3E%3C/svg%3E");
+      z-index: 0;
+    }
+
+    /* Floating illustration (decorative) – same as before */
+    .floating-illustration {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 90px;
+      height: 90px;
+      pointer-events: none;
+      z-index: 1;
+      opacity: 0.5;
+      transition: opacity 0.3s ease;
+    }
+    .floating-illustration:hover {
+      opacity: 0.8;
+    }
+    @media (max-width: 640px) {
+      .floating-illustration {
+        width: 60px;
+        height: 60px;
+        bottom: 12px;
+        right: 12px;
+        opacity: 0.3;
+      }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: linear-gradient(90deg, #fff, #f8fbff);
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+      transition: box-shadow var(--transition-fast);
+      position: relative;
+      z-index: 2;
+    }
+
+    .topbar:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 18px;
+      transition: transform var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .topbar h1::before {
+      content: "📄✨";
+      font-size: 1.2rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .file-btn,
+    .btn {
+      background: #fff;
+      border: 1px solid #e6eefc;
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      position: relative;
+      z-index: 2;
+    }
+
+    .file-btn {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .file-btn:hover {
+      background: var(--accent-dark);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn:hover {
+      background: #f0f4fe;
+      transform: translateY(-1px);
+      border-color: #cddffc;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .container {
+      display: flex;
+      gap: var(--gap);
+      padding: 20px;
+      max-width: 1100px;
+      margin: 20px auto;
+      position: relative;
+      z-index: 2;
+    }
+
+    .left,
+    .right {
+      animation: slideUp 0.35s ease-out;
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(15px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .panel {
+      background: var(--card);
+      padding: 16px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      margin-bottom: var(--gap);
+      transition: transform var(--transition-normal), box-shadow var(--transition-normal);
+    }
+
+    .panel:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .viewer-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .pdfViewer {
+      background: #e9eef8;
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+      position: relative;
+    }
+
+    #pdfCanvas {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      transition: transform 0.2s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .drop-area {
+      border: 2px dashed #cfe0ff;
+      padding: 28px;
+      text-align: center;
+      border-radius: 10px;
+      background: linear-gradient(180deg, #fff, #f7fbff);
+      transition: all var(--transition-normal);
+      cursor: grab;
+    }
+
+    .drop-area.active {
+      background: #eef3ff;
+      border-color: var(--accent);
+      transform: scale(0.98);
+    }
+
+    .drop-area:not(.hidden):hover {
+      background: #f0f5ff;
+      border-color: var(--accent);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .info p {
+      margin: 8px 0;
+      color: var(--muted);
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .disabled {
+      opacity: 0.5;
+      pointer-events: none;
+      filter: grayscale(0.1);
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(37, 99, 235, 0.2);
+      border-radius: 50%;
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .pdfViewer canvas {
+      transition: opacity 0.2s;
+    }
+
+    input[type="range"] {
+      transition: opacity 0.2s;
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        flex-direction: column;
+        padding: 12px;
+      }
+      .right {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Decorative floating illustration (visible on page) -->
+  <div class="floating-illustration" aria-hidden="true">
+    <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="45" fill="#ffffff" fill-opacity="0.3" stroke="#c7d2fe" stroke-width="0.8" stroke-dasharray="2 2"/>
+      <path d="M35 30 L55 30 L65 40 L65 65 L35 65 Z" fill="#eef2ff" stroke="#818cf8" stroke-width="1.2" stroke-linejoin="round"/>
+      <path d="M55 30 L55 40 L65 40" fill="none" stroke="#818cf8" stroke-width="1.2"/>
+      <text x="42" y="55" font-size="12" fill="#4f46e5" font-family="Arial">📄</text>
+      <path d="M70 22 L74 26 L70 30" stroke="#facc15" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <circle cx="74" cy="22" r="1.5" fill="#facc15" />
+      <path d="M26 72 L30 68 L34 72" stroke="#facc15" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <header class="topbar">
+    <h1>PDF Viewer & Converter</h1>
+    <div class="controls">
+      <label class="file-btn">
+        📂 Open file
+        <input id="fileInput" type="file" accept=".pdf,image/*" />
+      </label>
+      <button id="dropToggle" class="btn">📌 Toggle Drop Area</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <aside class="left">
+      <section class="panel">
+        <h2>📄 Viewer</h2>
+        <div class="viewer-controls">
+          <button id="prev" class="btn">◀ Prev</button>
+          <span id="pageInfo">0 / 0</span>
+          <button id="next" class="btn">Next ▶</button>
+          <label>Zoom
+            <input id="zoom" type="range" min="0.5" max="2.5" step="0.1" value="1" />
+          </label>
+          <button id="downloadPdfPage" class="btn">⬇️ Page PNG</button>
+        </div>
+        <div id="pdfViewer" class="pdfViewer">
+          <canvas id="pdfCanvas"></canvas>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>🖼️ Convert</h2>
+        <div class="convert-row">
+          <h3>🖌️ Images → PDF</h3>
+          <input id="imgInput" type="file" accept="image/*" multiple />
+          <button id="imagesToPdf" class="btn">📚 Convert Images to PDF</button>
+        </div>
+        <div class="convert-row" style="margin-top:12px">
+          <h3>📸 PDF → Images</h3>
+          <button id="pdfToImages" class="btn">💾 Export All Pages as PNG</button>
+        </div>
+      </section>
+    </aside>
+
+    <section class="right">
+      <div id="dropArea" class="drop-area hidden">
+        <p>📥 Drop PDF or images here</p>
+      </div>
+
+      <section class="panel info">
+        <h2>ℹ️ Info & Actions</h2>
+        <p><strong>Loaded file:</strong> <span id="fileName">none</span></p>
+        <p><strong>Size:</strong> <span id="fileSize">—</span></p>
+        <div class="action-row">
+          <button id="clear" class="btn">🗑️ Clear</button>
+          <a id="downloadLink" class="btn disabled" download>💾 Download</a>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer" style="text-align:center;padding:12px 0; position:relative; z-index:2;">
+    <small>⚡ Client-side only • No files uploaded • Tab icon added ✨</small>
+  </footer>
+
+  <script>
+    // Initialize PDF.js worker
+    const pdfjsLib = window['pdfjs-dist/build/pdf'];
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.141/pdf.worker.min.js';
+
+    // DOM elements
+    const fileInput = document.getElementById('fileInput');
+    const imgInput = document.getElementById('imgInput');
+    const pdfCanvas = document.getElementById('pdfCanvas');
+    const ctx = pdfCanvas.getContext('2d');
+    const pageInfo = document.getElementById('pageInfo');
+    const prevBtn = document.getElementById('prev');
+    const nextBtn = document.getElementById('next');
+    const zoomRange = document.getElementById('zoom');
+    const downloadPdfPage = document.getElementById('downloadPdfPage');
+    const imagesToPdfBtn = document.getElementById('imagesToPdf');
+    const pdfToImagesBtn = document.getElementById('pdfToImages');
+    const fileNameEl = document.getElementById('fileName');
+    const fileSizeEl = document.getElementById('fileSize');
+    const dropArea = document.getElementById('dropArea');
+    const dropToggle = document.getElementById('dropToggle');
+    const clearBtn = document.getElementById('clear');
+    const downloadLink = document.getElementById('downloadLink');
+
+    let pdfDoc = null;
+    let currentPage = 1;
+    let scale = parseFloat(zoomRange.value);
+
+    function formatBytes(bytes) {
+      if (!bytes) return '—';
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+    }
+
+    let isLoading = false;
+    function showLoading() {
+      if (isLoading) return;
+      isLoading = true;
+      const parent = document.getElementById('pdfViewer');
+      let spinner = parent.querySelector('.loading-spinner');
+      if (!spinner) {
+        spinner = document.createElement('div');
+        spinner.className = 'loading-spinner';
+        spinner.style.position = 'absolute';
+        parent.style.position = 'relative';
+        parent.appendChild(spinner);
+      }
+      spinner.style.display = 'inline-block';
+    }
+    function hideLoading() {
+      isLoading = false;
+      const spinner = document.querySelector('#pdfViewer .loading-spinner');
+      if (spinner) spinner.style.display = 'none';
+    }
+
+    async function renderPage(pageNum) {
+      if (!pdfDoc) return;
+      showLoading();
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale });
+        pdfCanvas.width = Math.floor(viewport.width);
+        pdfCanvas.height = Math.floor(viewport.height);
+        pdfCanvas.style.opacity = '0.5';
+        const renderContext = { canvasContext: ctx, viewport };
+        await page.render(renderContext).promise;
+        pdfCanvas.style.opacity = '1';
+        pageInfo.textContent = `${pageNum} / ${pdfDoc.numPages}`;
+      } catch (err) {
+        console.warn(err);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    fileInput.addEventListener('change', async (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      fileNameEl.textContent = f.name;
+      fileSizeEl.textContent = formatBytes(f.size);
+      if (f.type === 'application/pdf') {
+        const arrayBuffer = await f.arrayBuffer();
+        loadPdf(arrayBuffer);
+      } else if (f.type.startsWith('image/')) {
+        const img = new Image();
+        img.onload = () => {
+          pdfCanvas.width = img.width;
+          pdfCanvas.height = img.height;
+          ctx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+          ctx.drawImage(img, 0, 0);
+          pageInfo.textContent = 'Image preview';
+          pdfDoc = null;
+          hideLoading();
+          pdfCanvas.style.opacity = '0.9';
+          setTimeout(() => (pdfCanvas.style.opacity = '1'), 100);
+        };
+        img.src = URL.createObjectURL(f);
+      } else {
+        alert('Unsupported file type');
+      }
+    });
+
+    async function loadPdf(data) {
+      showLoading();
+      pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+      currentPage = 1;
+      await renderPage(currentPage);
+      hideLoading();
+    }
+
+    prevBtn.addEventListener('click', () => {
+      if (!pdfDoc) return;
+      if (currentPage > 1) {
+        currentPage--;
+        renderPage(currentPage);
+      }
+    });
+    nextBtn.addEventListener('click', () => {
+      if (!pdfDoc) return;
+      if (currentPage < pdfDoc.numPages) {
+        currentPage++;
+        renderPage(currentPage);
+      }
+    });
+    zoomRange.addEventListener('input', () => {
+      scale = parseFloat(zoomRange.value);
+      renderPage(currentPage);
+    });
+
+    downloadPdfPage.addEventListener('click', () => {
+      if (!pdfCanvas.width || !pdfCanvas.height) return;
+      const dataUrl = pdfCanvas.toDataURL('image/png');
+      downloadLink.href = dataUrl;
+      downloadLink.download = `page-${currentPage}.png`;
+      downloadLink.classList.remove('disabled');
+      downloadLink.click();
+      downloadPdfPage.style.transform = 'scale(0.97)';
+      setTimeout(() => (downloadPdfPage.style.transform = ''), 150);
+    });
+
+    imagesToPdfBtn.addEventListener('click', async () => {
+      const files = imgInput.files;
+      if (!files || files.length === 0) return alert('Select images first');
+      imagesToPdfBtn.classList.add('disabled');
+      imagesToPdfBtn.textContent = '⏳ Generating PDF...';
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ unit: 'px', format: 'a4' });
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i];
+        const img = await fileToImage(f);
+        const maxW = 595;
+        const maxH = 842;
+        const ratio = Math.min(maxW / img.width, maxH / img.height);
+        const w = img.width * ratio;
+        const h = img.height * ratio;
+        if (i > 0) doc.addPage();
+        doc.addImage(img, 'PNG', (maxW - w) / 2, (maxH - h) / 2, w, h);
+      }
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      downloadLink.href = url;
+      downloadLink.download = 'images-to-pdf.pdf';
+      downloadLink.classList.remove('disabled');
+      downloadLink.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      imagesToPdfBtn.classList.remove('disabled');
+      imagesToPdfBtn.textContent = '📚 Convert Images to PDF';
+    });
+
+    pdfToImagesBtn.addEventListener('click', async () => {
+      if (!pdfDoc) return alert('Load a PDF first');
+      pdfToImagesBtn.classList.add('disabled');
+      pdfToImagesBtn.textContent = '⏳ Exporting pages...';
+      for (let p = 1; p <= pdfDoc.numPages; p++) {
+        const page = await pdfDoc.getPage(p);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+        const dataUrl = canvas.toDataURL('image/png');
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = `page-${p}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        await new Promise(r => setTimeout(r, 50));
+      }
+      pdfToImagesBtn.classList.remove('disabled');
+      pdfToImagesBtn.textContent = '💾 Export All Pages as PNG';
+    });
+
+    function fileToImage(file) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+      });
+    }
+
+    dropToggle.addEventListener('click', () => {
+      dropArea.classList.toggle('hidden');
+      if (!dropArea.classList.contains('hidden')) {
+        dropArea.style.animation = 'none';
+        dropArea.offsetHeight;
+        dropArea.style.animation = 'fadeIn 0.3s ease';
+      }
+    });
+
+    ['dragenter', 'dragover'].forEach(ev =>
+      dropArea.addEventListener(ev, e => {
+        e.preventDefault();
+        dropArea.classList.add('active');
+      })
+    );
+    ['dragleave', 'drop'].forEach(ev =>
+      dropArea.addEventListener(ev, e => {
+        e.preventDefault();
+        dropArea.classList.remove('active');
+      })
+    );
+    dropArea.addEventListener('drop', async e => {
+      e.preventDefault();
+      const f = e.dataTransfer.files[0];
+      if (!f) return;
+      fileInput.files = e.dataTransfer.files;
+      const evt = new Event('change');
+      fileInput.dispatchEvent(evt);
+      dropArea.classList.remove('active');
+    });
+
+    clearBtn.addEventListener('click', () => {
+      pdfDoc = null;
+      currentPage = 1;
+      ctx.clearRect(0, 0, pdfCanvas.width, pdfCanvas.height);
+      fileNameEl.textContent = 'none';
+      fileSizeEl.textContent = '—';
+      pageInfo.textContent = '0 / 0';
+      downloadLink.classList.add('disabled');
+      pdfCanvas.style.opacity = '0';
+      setTimeout(() => (pdfCanvas.style.opacity = '1'), 100);
+    });
+
+    downloadLink.addEventListener('click', e => {
+      if (downloadLink.classList.contains('disabled')) e.preventDefault();
+    });
+
+    const allBtns = document.querySelectorAll('.btn, .file-btn');
+    allBtns.forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        btn.style.transition = 'all 0.2s';
+      });
+    });
+  </script>
+</body>
+</html>
